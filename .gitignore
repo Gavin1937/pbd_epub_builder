@@ -1,0 +1,19 @@
+
+# files
+*.sh
+*.jpg
+*.jpeg
+*.png
+*.txt
+*.json
+*.epub
+*main*
+*test*
+
+# folders
+/.vscode/
+/data/
+
+# file whitelist
+!requirements.txt
+
