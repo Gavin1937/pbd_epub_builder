@@ -7,11 +7,14 @@
 *.txt
 *.json
 *.epub
+*.html
+*.xhtml
 *main*
 *test*
 
 # folders
 /.vscode/
+/__pycache__/
 /data/
 
 # file whitelist
