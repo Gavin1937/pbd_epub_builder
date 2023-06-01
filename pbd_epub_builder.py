@@ -8,6 +8,7 @@ from ebooklib import epub
 from typing import Union
 from copy import deepcopy
 from pathlib import Path, PurePath
+from time import time
 
 __all__ = [
     'extract_series_json',
@@ -20,14 +21,14 @@ __all__ = [
 HELP_MESSAGE = '''
 INFO
     Author           - Gavin1937
-    Version          - 2023.05.31.v01
+    Version          - 2023.05.31.v02
     pdb_epub_builder - Build EPUB book for novels downloaded by PixivBatchDownloader(https://github.com/xuejianxianzun/PixivBatchDownloader)
 
 SYNOPSIS
-    python3 pdb_epub_builder.py ROOT_DIR [-l SERIES_JSON_LIST | -w SERIES_JSON_WILDCARD] -d DATA_PATH -o OUTPUT_PATH -idx
+    python3 pdb_epub_builder.py ROOT_DIR [-l SERIES_JSON_LIST | -w SERIES_JSON_WILDCARD] -d DATA_PATH -o OUTPUT_PATH OPTIONAL_ARGS
     
     you can set pdb_epub_builder.py to an executable file and use:
-    ./pdb_epub_builder.py ROOT_DIR [-l SERIES_JSON_LIST | -w SERIES_JSON_WILDCARD] -d DATA_PATH -o OUTPUT_PATH -idx
+    ./pdb_epub_builder.py ROOT_DIR [-l SERIES_JSON_LIST | -w SERIES_JSON_WILDCARD] -d DATA_PATH -o OUTPUT_PATH OPTIONAL_ARGS
 
 DESCRIPTION
     Build EPUB book for novels downloaded by PixivBatchDownloader(https://github.com/xuejianxianzun/PixivBatchDownloader).
@@ -57,8 +58,26 @@ ARGUMENTS
     -d DATA_PATH                input a relative path to directory contains all the txt file and images
     
     -o OUTPUT_PATH              input an output directory path
+
+OPTIONAL ARGUMENTS
+    -idx                        flag to indicate whether to add numerical index before novel title (default False)
     
-    -idx                        [OPTIONAL] flag to indicate whether to add numerical index before novel title (default False)
+    -title                      string template to overwrite & customize series title inside epub.
+                                if not supplied, this script will use "%SERIES_TITLE%" by default.
+                                series_title is picked from "series_title" field in seriesjson, if exists.
+                                if it does not exist, we will pick the "novel_title" field of the first novel in the list.
+    
+    -file                       string template to output & customize epub filename.
+                                if not supplied, this script will use "[%AUTHOR_NAME%] %SERIES_TITLE%.epub" by default
+
+STRING TEMPLATE
+    %AUTHOR_NAME%               string author_name
+    %AUTHOR_ID%                 string author's pixiv id
+    %SERIES_TITLE%              string series title
+    %SERIES_ID%                 string series id in pixiv
+    %TIMESTAMP%                 string unix timestamp to seconds
+    
+    string template can be applied to arguments "-title" and "-file"
 
 EXAMPLES
     
@@ -72,6 +91,13 @@ EXAMPLES
     output to current directory. and add numerical index before novel title.
     
         python3 pbd_epub_builder.py data -w result*.json -d contents -o ./ -idx
+    
+    build an epub from root directory "data",
+    taking all json files matches wild card "result*.json" and with data_path "data/contents".
+    output to current directory. and add numerical index before novel title.
+    and with specified title & filename template
+    
+        python3 pbd_epub_builder.py data -w result*.json -d contents -o ./ -idx -title '[%AUTHOR_NAME% %AUTHOR_ID%] %SERIES_TITLE% (%TIMESTAMP%)' -file '[%AUTHOR_NAME% %AUTHOR_ID%] %SERIES_TITLE% (%TIMESTAMP%).epub'
 '''
 
 
@@ -101,6 +127,7 @@ def extract_series_json(seriesjson:Union[str,Path,list,dict]) -> dict:
     
     
     output = {
+        'author_id': None,
         'author_name': None,
         'series_id': None,
         'series_title': None,
@@ -108,6 +135,7 @@ def extract_series_json(seriesjson:Union[str,Path,list,dict]) -> dict:
     }
     
     # extract series info
+    output['author_id'] = raw[0]['userId']
     output['author_name'] = raw[0]['user']
     series_id = raw[0]['seriesId']
     if series_id is None: # not a series, just a novel with 1 episode
@@ -209,6 +237,27 @@ def parse_novel_content(seriesjson:dict, novel_id:int, novel_index:int, content:
     return html
 
 
+def _parse_str_template(seriesjson:dict, template:str) -> str:
+    if not isinstance(template, str):
+        raise ValueError('Parameter "template" must be a string')
+    
+    # - %AUTHOR_NAME%     => string author_name
+    # - %AUTHOR_ID%       => string author's pixiv id
+    # - %SERIES_TITLE%    => string series title
+    # - %SERIES_ID%       => string series id in pixiv
+    # - %TIMESTAMP%       => string current unix timestamp to seconds
+    
+    print(seriesjson)
+    output = deepcopy(template)
+    output = output.replace('%AUTHOR_NAME%', seriesjson['author_name'])
+    output = output.replace('%AUTHOR_ID%', str(seriesjson['author_id']))
+    output = output.replace('%SERIES_TITLE%', seriesjson['series_title'])
+    output = output.replace('%SERIES_ID%', str(seriesjson['series_id']))
+    output = output.replace('%TIMESTAMP%', str(int(time())))
+    
+    return output
+
+
 def generate_epub(root_path:Union[str,Path], seriesjson_list:Union[list,str], data_path:Union[str,Path], output_path:Union[str,Path], **kwargs):
     '''
     generate epub from PixivBatchDownloader downloaded novels.
@@ -219,7 +268,7 @@ def generate_epub(root_path:Union[str,Path], seriesjson_list:Union[list,str], da
     note that, the order of novels inside a series will be sort base on their novel_id found inside seriesjson file.
     
     Parameters:
-    -----
+    -----------
         - root_path          => root path to working directory
         - seriesjson_list    => list of relative path to seriesjson (result json dump) from PixivBatchDownloader.
                                 or, you can use a string wild card to match multiple json files.
@@ -230,6 +279,22 @@ def generate_epub(root_path:Union[str,Path], seriesjson_list:Union[list,str], da
         - output_path        => path to output directory
         - kwargs:
             - use_idx        => bool, whether to add numerical index before novel title
+            - series_title   => str, if supplied, overwrite series title with this str template inside epub
+                                if not supplied, this function will use "%SERIES_TITLE%" by default
+                                series_title is picked from "series_title" field in seriesjson, if exists.
+                                if it does not exist, we will pick the "novel_title" field of the first novel in the list.
+            - filename       => str, if supplied, overwrite output epub filename with this str template
+                                if not supplied, this function will use "[%AUTHOR_NAME%] %SERIES_TITLE%.epub" by default
+    
+    String Template:
+    ----------------
+        - %AUTHOR_NAME%     => string author_name
+        - %AUTHOR_ID%       => string author's pixiv id
+        - %SERIES_TITLE%    => string series title
+        - %SERIES_ID%       => string series id in pixiv
+        - %TIMESTAMP%       => string unix timestamp to seconds
+        
+        string template can be applied to kwargs "series_title" and "filename"
     '''
     
     if isinstance(root_path, str):
@@ -266,7 +331,10 @@ def generate_epub(root_path:Union[str,Path], seriesjson_list:Union[list,str], da
     toc = []
     
     # add metadata
-    book.set_title(seriesjson['series_title'])
+    if 'series_title' in kwargs and kwargs['series_title'] is not None:
+        book.set_title(_parse_str_template(seriesjson, kwargs['series_title']))
+    else:
+        book.set_title(seriesjson['series_title'])
     book.add_author(seriesjson['author_name'])
     
     # add novels
@@ -315,7 +383,12 @@ def generate_epub(root_path:Union[str,Path], seriesjson_list:Union[list,str], da
     book.add_item(epub.EpubNav())
     book.spine = ['nav', *toc]
     
-    epub.write_epub(output_path/f'{seriesjson["series_title"]}.epub', book, {})
+    filename = None
+    if 'filename' in kwargs and kwargs['filename'] is not None:
+        filename = _parse_str_template(seriesjson, kwargs['filename'])
+    else:
+        filename = _parse_str_template(seriesjson, '[%AUTHOR_NAME%] %SERIES_TITLE%.epub')
+    epub.write_epub(output_path/filename, book, {})
 
 
 
@@ -337,6 +410,7 @@ if __name__ == '__main__':
             print('Missing arguments.')
             exit(-1)
         
+        # parse mandatory arguments
         argv_cursor = 1
         root_path = argv[argv_cursor]
         argv_cursor += 1
@@ -371,14 +445,24 @@ if __name__ == '__main__':
         else:
             raise ValueError('Input argument are in a wrong order.')
         
-        use_idx = False
-        if len(argv) > argv_cursor and argv[argv_cursor] == '-idx':
-            use_idx = True
+        # parse optional arguments
+        optional_args = dict()
+        while len(argv) > argv_cursor:
+            if argv[argv_cursor] == '-idx':
+                optional_args['use_idx'] = True
+            elif argv[argv_cursor] == '-title' and len(argv) > argv_cursor+1:
+                optional_args['series_title'] = argv[argv_cursor+1]
+                argv_cursor += 1
+            elif argv[argv_cursor] == '-file' and len(argv) > argv_cursor+1:
+                optional_args['filename'] = argv[argv_cursor+1]
+                argv_cursor += 1
+            argv_cursor += 1
+        
         
         generate_epub(
             root_path, seriesjson_list,
             data_path, output_path,
-            use_idx=use_idx
+            **optional_args
         )
         
     except KeyboardInterrupt:

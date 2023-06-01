@@ -25,14 +25,14 @@ pip install -r requirements.txt
 ```
 INFO
     Author           - Gavin1937
-    Version          - 2023.05.31.v01
+    Version          - 2023.05.31.v02
     pdb_epub_builder - Build EPUB book for novels downloaded by PixivBatchDownloader(https://github.com/xuejianxianzun/PixivBatchDownloader)
 
 SYNOPSIS
-    python3 pdb_epub_builder.py ROOT_DIR [-l SERIES_JSON_LIST | -w SERIES_JSON_WILDCARD] -d DATA_PATH -o OUTPUT_PATH -idx
+    python3 pdb_epub_builder.py ROOT_DIR [-l SERIES_JSON_LIST | -w SERIES_JSON_WILDCARD] -d DATA_PATH -o OUTPUT_PATH OPTIONAL_ARGS
     
     you can set pdb_epub_builder.py to an executable file and use:
-    ./pdb_epub_builder.py ROOT_DIR [-l SERIES_JSON_LIST | -w SERIES_JSON_WILDCARD] -d DATA_PATH -o OUTPUT_PATH -idx
+    ./pdb_epub_builder.py ROOT_DIR [-l SERIES_JSON_LIST | -w SERIES_JSON_WILDCARD] -d DATA_PATH -o OUTPUT_PATH OPTIONAL_ARGS
 
 DESCRIPTION
     Build EPUB book for novels downloaded by PixivBatchDownloader(https://github.com/xuejianxianzun/PixivBatchDownloader).
@@ -62,8 +62,26 @@ ARGUMENTS
     -d DATA_PATH                input a relative path to directory contains all the txt file and images
     
     -o OUTPUT_PATH              input an output directory path
+
+OPTIONAL ARGUMENTS
+    -idx                        flag to indicate whether to add numerical index before novel title (default False)
     
-    -idx                        [OPTIONAL] flag to indicate whether to add numerical index before novel title (default False)
+    -title                      string template to overwrite & customize series title inside epub.
+                                if not supplied, this script will use "%SERIES_TITLE%" by default.
+                                series_title is picked from "series_title" field in seriesjson, if exists.
+                                if it does not exist, we will pick the "novel_title" field of the first novel in the list.
+    
+    -file                       string template to output & customize epub filename.
+                                if not supplied, this script will use "[%AUTHOR_NAME%] %SERIES_TITLE%.epub" by default
+
+STRING TEMPLATE
+    %AUTHOR_NAME%               string author_name
+    %AUTHOR_ID%                 string author's pixiv id
+    %SERIES_TITLE%              string series title
+    %SERIES_ID%                 string series id in pixiv
+    %TIMESTAMP%                 string unix timestamp to seconds
+    
+    string template can be applied to arguments "-title" and "-file"
 
 EXAMPLES
     
@@ -77,6 +95,13 @@ EXAMPLES
     output to current directory. and add numerical index before novel title.
     
         python3 pbd_epub_builder.py data -w result*.json -d contents -o ./ -idx
+    
+    build an epub from root directory "data",
+    taking all json files matches wild card "result*.json" and with data_path "data/contents".
+    output to current directory. and add numerical index before novel title.
+    and with specified title & filename template
+    
+        python3 pbd_epub_builder.py data -w result*.json -d contents -o ./ -idx -title '[%AUTHOR_NAME% %AUTHOR_ID%] %SERIES_TITLE% (%TIMESTAMP%)' -file '[%AUTHOR_NAME% %AUTHOR_ID%] %SERIES_TITLE% (%TIMESTAMP%).epub'
 ```
 
 ## API Usage
@@ -94,11 +119,15 @@ data_path = 'relative_path/to/data/folder'
 
 output_path = '/path/to/output/folder'
 
-use_idx = False
+kwargs = {
+    'use_idx': False,
+    'series_title': '%SERIES_TITLE%',
+    'filename': '[%AUTHOR_NAME%] %SERIES_TITLE%.epub',
+}
 
 generate_epub(
     root_path, seriesjson_list,
     data_path, output_path,
-    use_idx=use_idx
+    **kwargs
 )
 ```
