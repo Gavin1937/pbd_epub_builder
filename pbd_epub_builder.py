@@ -2,14 +2,88 @@
 
 import re
 import json
+from sys import argv
 from bs4 import BeautifulSoup
 from ebooklib import epub
 from typing import Union
 from copy import deepcopy
 from pathlib import Path, PurePath
 
+__all__ = [
+    'extract_series_json',
+    'parse_novel_content',
+    'generate_epub',
+    'pdb_epub_builder_help',
+]
+
+
+HELP_MESSAGE = '''
+INFO
+    Author           - Gavin1937
+    Version          - 2023.05.31.v01
+    pdb_epub_builder - Build EPUB book for novels downloaded by PixivBatchDownloader(https://github.com/xuejianxianzun/PixivBatchDownloader)
+
+SYNOPSIS
+    python3 pdb_epub_builder.py ROOT_DIR [-l SERIES_JSON_LIST | -w SERIES_JSON_WILDCARD] -d DATA_PATH -o OUTPUT_PATH -idx
+    
+    you can set pdb_epub_builder.py to an executable file and use:
+    ./pdb_epub_builder.py ROOT_DIR [-l SERIES_JSON_LIST | -w SERIES_JSON_WILDCARD] -d DATA_PATH -o OUTPUT_PATH -idx
+
+DESCRIPTION
+    Build EPUB book for novels downloaded by PixivBatchDownloader(https://github.com/xuejianxianzun/PixivBatchDownloader).
+    This tool provides a more structure epub build compare to PixivBatchDownloader's epub generator.
+    You will need to download the novel|series by "Crawl series of novels" first,
+    and then download crawled result (seriesjson) by "export results".
+
+REQUIREMENTS
+    * EbookLib            >= 0.18
+    * beautifulsoup4      >= 4.12.2
+    * lxml                >= 4.9.2
+    
+    install with `pip install -r requirements.txt`
+
+ARGUMENTS
+    ROOT_DIR                    path to root directory of novel content, novel images, and seriesjson files
+    
+    -l SERIES_JSON_LIST         input a list of series json
+                                you cannot use this option with -w
+                                SERIES_JSON_LIST        a list of relative path to seriesjson files
+    
+    -w SERIES_JSON_WILDCARD     input a string wild card to match seriesjson files
+                                you cannot use this option with -l
+                                SERIES_JSON_WILDCARD    a single string of relative path with wild card to seriesjson file
+                                                        only support wild card charater "*", represents zero or more characters
+    
+    -d DATA_PATH                input a relative path to directory contains all the txt file and images
+    
+    -o OUTPUT_PATH              input an output directory path
+    
+    -idx                        [OPTIONAL] flag to indicate whether to add numerical index before novel title (default False)
+
+EXAMPLES
+    
+    build an epub from root directory "data",
+    taking all json files and with data_path "data/contents". output to current directory
+    
+        python3 pbd_epub_builder.py data -l 'result1.json' 'result2.json' 'result3.json' -d contents -o ./
+    
+    build an epub from root directory "data",
+    taking all json files matches wild card "result*.json" and with data_path "data/contents".
+    output to current directory. and add numerical index before novel title.
+    
+        python3 pbd_epub_builder.py data -w result*.json -d contents -o ./ -idx
+'''
+
 
 def extract_series_json(seriesjson:Union[str,Path,list,dict]) -> dict:
+    '''
+    extract key info from a single series json file
+    
+    Parameters:
+    -----------
+        - seriesjson     => seriesjson (result json dump) from PixivBatchDownloader
+    '''
+    
     raw = None
     if isinstance(seriesjson, str) or isinstance(seriesjson, Path):
         with open(seriesjson, 'r', encoding='utf-8') as file:
@@ -18,7 +92,7 @@ def extract_series_json(seriesjson:Union[str,Path,list,dict]) -> dict:
         raw = [seriesjson]
     elif isinstance(seriesjson, list):
         raw = []
-        if isinstance(seriesjson[0], str):
+        if isinstance(seriesjson[0], str) or isinstance(seriesjson[0], Path):
             for j in seriesjson:
                 with open(j, 'r', encoding='utf-8') as file:
                     raw += json.load(file)
@@ -71,7 +145,17 @@ def extract_series_json(seriesjson:Union[str,Path,list,dict]) -> dict:
 
 
 def parse_novel_content(seriesjson:dict, novel_id:int, novel_index:int, content:str, img_path:str):
-    'parse txt novel content & return BeautifulSoup Object'
+    '''
+    parse txt novel content & return BeautifulSoup Object
+    
+    Parameters:
+    -----------
+        - seriesjson     => seriesjson (result json dump) from PixivBatchDownloader
+        - novel_id       => novel id of novel content
+        - novel_index    => novel index in the series
+        - content        => string content of the novel (not html str)
+        - img_path       => path to image folder
+    '''
     
     img_path = PurePath(img_path)
     html = BeautifulSoup('<div class="novel_content"></div>', 'lxml')
@@ -106,12 +190,12 @@ def parse_novel_content(seriesjson:dict, novel_id:int, novel_index:int, content:
     novel_cover_img = html.new_tag('img')
     novel_cover_img['src'] = str(img_path/seriesjson['novels'][novel_id]['novel_cover_img_name'])
     meta_section.append(novel_cover_img)
-    novel_title_p = html.new_tag('p')
+    novel_title_h1 = html.new_tag('h1')
     if novel_index != -1:
-        novel_title_p.string = f'{novel_index}. {seriesjson["novels"][novel_id]["novel_title"]}'
+        novel_title_h1.string = f'{novel_index}. {seriesjson["novels"][novel_id]["novel_title"]}'
     else:
-        novel_title_p.string = f'{seriesjson["novels"][novel_id]["novel_title"]}'
-    meta_section.append(novel_title_p)
+        novel_title_h1.string = f'{seriesjson["novels"][novel_id]["novel_title"]}'
+    meta_section.append(novel_title_h1)
     novel_description_p = html.new_tag('p')
     novel_description_p = BeautifulSoup(
         f'<p>{seriesjson["novels"][novel_id]["novel_description"]}</p>',
@@ -125,22 +209,58 @@ def parse_novel_content(seriesjson:dict, novel_id:int, novel_index:int, content:
     return html
 
 
-def generate_epub(seriesjson:Union[str,Path,list,dict], data_path:Union[str,Path], output_path:Union[str,Path], **kwargs):
+def generate_epub(root_path:Union[str,Path], seriesjson_list:Union[list,str], data_path:Union[str,Path], output_path:Union[str,Path], **kwargs):
     '''
-    kwargs:
-        use_idx     => bool, whether to add numerical index before novel title
+    generate epub from PixivBatchDownloader downloaded novels.
+    
+    you need to download novel series by "Crawl series of novels" first,
+    and then "export results" to get seriesjson.
+    
+    note that, the order of novels inside a series will be sort base on their novel_id found inside seriesjson file.
+    
+    Parameters:
+    -----
+        - root_path          => root path to working directory
+        - seriesjson_list    => list of relative path to seriesjson (result json dump) from PixivBatchDownloader.
+                                or, you can use a string wild card to match multiple json files.
+                                use wild card character "*" to represents zero or more characters.
+                                this function will use pathlib.Path.rglob() to recursive search the root_path with given wild card.
+                                in this case, seriesjson_list MUST BE A STRING.
+        - data_path          => relative path to directory contains all the txt & images (MUST BE RELATIVE PATH)
+        - output_path        => path to output directory
+        - kwargs:
+            - use_idx        => bool, whether to add numerical index before novel title
     '''
+    
+    if isinstance(root_path, str):
+        root_path = Path(root_path)
+    if not root_path.exists():
+        raise ValueError('Input "root_path" does not exists.')
+    data_path = root_path/data_path
+    if not data_path.exists():
+        raise ValueError('Input "data_path" does not exists.')
     
     if isinstance(output_path, str):
         output_path = Path(output_path)
     if not output_path.exists():
         raise ValueError('Input "output_path" does not exists.')
-    if isinstance(data_path, str):
-        data_path = Path(data_path)
-    if not data_path.exists():
-        raise ValueError('Input "data_path" does not exists.')
     
-    seriesjson = extract_series_json(seriesjson)
+    tmp = []
+    if isinstance(seriesjson_list, list):
+        for series in seriesjson_list:
+            if (isinstance(series, str) or isinstance(series, Path)) and (root_path/series).exists():
+                tmp.append(root_path/series)
+            else:
+                raise ValueError('Some relative path in input "seriesjson_list" does not exists.')
+    elif isinstance(seriesjson_list, str):
+        tmp = [i for i in root_path.rglob(seriesjson_list) if i.is_file() and 'json' in i.suffix]
+    else:
+        raise ValueError('Input "seriesjson_list" must be a list of relative path.')
+    if len(tmp) <= 0:
+        raise ValueError('No input "seriesjson_list" is valid.')
+    seriesjson = extract_series_json(tmp)
+    del tmp
+    
     
     book = epub.EpubBook()
     toc = []
@@ -153,14 +273,17 @@ def generate_epub(seriesjson:Union[str,Path,list,dict], data_path:Union[str,Path
     for idx,(novel_id,novel_obj) in enumerate(seriesjson['novels'].items(), 1):
         # load novel content txt
         novel_file = data_path/f'{novel_obj["novel_id"]}.txt'
+        novel_title = None
         if not novel_file.exists():
             raise ValueError(f'Novel File "{novel_file}" does not exists.')
         with open(novel_file, 'r', encoding='utf-8') as file:
             if 'use_idx' in kwargs and kwargs['use_idx']:
                 novel_content_html = parse_novel_content(seriesjson, novel_id, idx, file.read(), 'image')
+                novel_title = novel_content_html.select_one('.novel_meta h1').getText()
             else:
                 novel_content_html = parse_novel_content(seriesjson, novel_id, -1, file.read(), 'image')
-        novel_epub = epub.EpubHtml(title=novel_obj['novel_title'], file_name=f'{novel_id}.xhtml')
+                novel_title = novel_obj['novel_title']
+        novel_epub = epub.EpubHtml(title=novel_title, file_name=f'{novel_id}.xhtml')
         novel_epub.content = str(novel_content_html)
         book.add_item(novel_epub)
         toc.append(novel_epub)
@@ -196,3 +319,72 @@ def generate_epub(seriesjson:Union[str,Path,list,dict], data_path:Union[str,Path
 
 
 
+def pdb_epub_builder_help():
+    print(HELP_MESSAGE)
+
+
+if __name__ == '__main__':
+    try:
+        if len(argv) == 1:
+            pdb_epub_builder_help()
+            exit()
+        
+        if '-h' in argv or '--help' in argv or 'help' in argv:
+            pdb_epub_builder_help()
+            exit()
+        
+        if len(argv) < 8:
+            print('Missing arguments.')
+            exit(-1)
+        
+        argv_cursor = 1
+        root_path = argv[argv_cursor]
+        argv_cursor += 1
+        
+        seriesjson_list = None
+        if argv[argv_cursor] == '-l':
+            seriesjson_list = []
+            argv_cursor += 1
+            while argv[argv_cursor] not in ['-l','-w','-d','-o','-idx']:
+                seriesjson_list.append(argv[argv_cursor])
+                argv_cursor += 1
+        elif argv[argv_cursor] == '-w':
+            argv_cursor += 1
+            seriesjson_list = argv[argv_cursor]
+            argv_cursor += 1
+        else:
+            raise ValueError('Input argument are in a wrong order.')
+        
+        data_path = None
+        if argv[argv_cursor] == '-d':
+            argv_cursor += 1
+            data_path = argv[argv_cursor]
+            argv_cursor += 1
+        else:
+            raise ValueError('Input argument are in a wrong order.')
+        
+        output_path = None
+        if argv[argv_cursor] == '-o':
+            argv_cursor += 1
+            output_path = argv[argv_cursor]
+            argv_cursor += 1
+        else:
+            raise ValueError('Input argument are in a wrong order.')
+        
+        use_idx = False
+        if len(argv) > argv_cursor and argv[argv_cursor] == '-idx':
+            use_idx = True
+        
+        generate_epub(
+            root_path, seriesjson_list,
+            data_path, output_path,
+            use_idx=use_idx
+        )
+        
+    except KeyboardInterrupt:
+        print()
+        exit(-1)
+    except Exception as err:
+        print(f'Exception: {err}')
+        exit(-1)
+    
