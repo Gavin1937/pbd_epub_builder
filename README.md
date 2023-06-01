@@ -20,6 +20,12 @@ Install using command
 pip install -r requirements.txt
 ```
 
+## Important Notes
+
+* In order for this script to work properly,
+* you need to download the novel|series by "Crawl series of novels" first
+* and then download crawled result (seriesjson) by "export results"
+
 ## CLI Usage
 
 ```
