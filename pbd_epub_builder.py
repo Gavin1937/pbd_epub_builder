@@ -247,7 +247,6 @@ def _parse_str_template(seriesjson:dict, template:str) -> str:
     # - %SERIES_ID%       => string series id in pixiv
     # - %TIMESTAMP%       => string current unix timestamp to seconds
     
-    print(seriesjson)
     output = deepcopy(template)
     output = output.replace('%AUTHOR_NAME%', seriesjson['author_name'])
     output = output.replace('%AUTHOR_ID%', str(seriesjson['author_id']))
@@ -258,7 +257,7 @@ def _parse_str_template(seriesjson:dict, template:str) -> str:
     return output
 
 
-def generate_epub(root_path:Union[str,Path], seriesjson_list:Union[list,str], data_path:Union[str,Path], output_path:Union[str,Path], **kwargs):
+def generate_epub(root_path:Union[str,Path], seriesjson_list:Union[list,str], data_path:Union[str,Path], output_path:Union[str,Path], **kwargs) -> Path:
     '''
     generate epub from PixivBatchDownloader downloaded novels.
     
@@ -295,6 +294,10 @@ def generate_epub(root_path:Union[str,Path], seriesjson_list:Union[list,str], da
         - %TIMESTAMP%       => string unix timestamp to seconds
         
         string template can be applied to kwargs "series_title" and "filename"
+    
+    Returns:
+    --------
+        - Path to output epub file
     '''
     
     if isinstance(root_path, str):
@@ -388,7 +391,9 @@ def generate_epub(root_path:Union[str,Path], seriesjson_list:Union[list,str], da
         filename = _parse_str_template(seriesjson, kwargs['filename'])
     else:
         filename = _parse_str_template(seriesjson, '[%AUTHOR_NAME%] %SERIES_TITLE%.epub')
-    epub.write_epub(output_path/filename, book, {})
+    output_path = output_path/filename
+    epub.write_epub(output_path, book, {})
+    return output_path.resolve()
 
 
 
@@ -459,11 +464,12 @@ if __name__ == '__main__':
             argv_cursor += 1
         
         
-        generate_epub(
+        output_file = generate_epub(
             root_path, seriesjson_list,
             data_path, output_path,
             **optional_args
         )
+        print(f'Create EPUB: {output_file}')
         
     except KeyboardInterrupt:
         print()
