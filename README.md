@@ -131,9 +131,11 @@ kwargs = {
     'filename': '[%AUTHOR_NAME%] %SERIES_TITLE%.epub',
 }
 
-generate_epub(
+output_file = generate_epub(
     root_path, seriesjson_list,
     data_path, output_path,
     **kwargs
 )
+
+print(f'Output File Path: {output_file}')
 ```
