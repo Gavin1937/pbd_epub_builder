@@ -25,7 +25,7 @@ INFO
     pdb_epub_builder - Build EPUB book for novels downloaded by PixivBatchDownloader(https://github.com/xuejianxianzun/PixivBatchDownloader)
 
 SYNOPSIS
-    python3 pdb_epub_builder.py ROOT_DIR [-l SERIES_JSON_LIST | -w SERIES_JSON_WILDCARD] -d DATA_PATH -o OUTPUT_PATH OPTIONAL_ARGS
+    python3 pdb_epub_builder.py -r ROOT_DIR [-l SERIES_JSON_LIST | -w SERIES_JSON_WILDCARD] -d DATA_PATH -o OUTPUT_PATH OPTIONAL_ARGS
     
     you can set pdb_epub_builder.py to an executable file and use:
     ./pdb_epub_builder.py ROOT_DIR [-l SERIES_JSON_LIST | -w SERIES_JSON_WILDCARD] -d DATA_PATH -o OUTPUT_PATH OPTIONAL_ARGS
@@ -44,7 +44,7 @@ REQUIREMENTS
     install with `pip install -r requirements.txt`
 
 ARGUMENTS
-    ROOT_DIR                    path to root directory of novel content, novel images, and seriesjson files
+    -r ROOT_DIR                 path to root directory of novel content, novel images, and seriesjson files
     
     -l SERIES_JSON_LIST         input a list of series json
                                 you cannot use this option with -w
@@ -89,20 +89,20 @@ EXAMPLES
     build an epub from root directory "data",
     taking all json files and with data_path "data/contents". output to current directory
     
-        python3 pbd_epub_builder.py data -l 'result1.json' 'result2.json' 'result3.json' -d contents -o ./
+        python3 pbd_epub_builder.py -r data -l 'result1.json' 'result2.json' 'result3.json' -d contents -o ./
     
     build an epub from root directory "data",
     taking all json files matches wild card "result*.json" and with data_path "data/contents".
     output to current directory. and add numerical index before novel title.
     
-        python3 pbd_epub_builder.py data -w result*.json -d contents -o ./ -idx
+        python3 pbd_epub_builder.py -r data -w result*.json -d contents -o ./ -idx
     
     build an epub from root directory "data",
     taking all json files matches wild card "result*.json" and with data_path "data/contents".
     output to current directory. and add numerical index before novel title.
     and with specified title & filename template
     
-        python3 pbd_epub_builder.py data -w result*.json -d contents -o ./ -idx -title '[%AUTHOR_NAME% %AUTHOR_ID%] %SERIES_TITLE% (%TIMESTAMP%)' -file '[%AUTHOR_NAME% %AUTHOR_ID%] %SERIES_TITLE% (%TIMESTAMP%).epub'
+        python3 pbd_epub_builder.py -r data -w result*.json -d contents -o ./ -idx -title '[%AUTHOR_NAME% %AUTHOR_ID%] %SERIES_TITLE% (%TIMESTAMP%)' -file '[%AUTHOR_NAME% %AUTHOR_ID%] %SERIES_TITLE% (%TIMESTAMP%).epub'
 '''
 
 
