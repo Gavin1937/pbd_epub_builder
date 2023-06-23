@@ -69,6 +69,9 @@ OPTIONAL ARGUMENTS
     
     -file                       string template to output & customize epub filename.
                                 if not supplied, this script will use "[%AUTHOR_NAME%] %SERIES_TITLE%.epub" by default
+    
+    - cover                     str, relative path to cover image file inside data folder. Default None.
+                                default use cover image of the first novel in the series.
 
 STRING TEMPLATE
     %AUTHOR_NAME%               string author_name
@@ -284,6 +287,8 @@ def generate_epub(root_path:Union[str,Path], seriesjson_list:Union[list,str], da
                                 if it does not exist, we will pick the "novel_title" field of the first novel in the list.
             - filename       => str, if supplied, overwrite output epub filename with this str template
                                 if not supplied, this function will use "[%AUTHOR_NAME%] %SERIES_TITLE%.epub" by default
+            - cover          => str, relative path to cover image file inside data folder. Default None.
+                                default use cover image of the first novel in the series.
     
     String Template:
     ----------------
@@ -340,6 +345,23 @@ def generate_epub(root_path:Union[str,Path], seriesjson_list:Union[list,str], da
         book.set_title(seriesjson['series_title'])
     book.add_author(seriesjson['author_name'])
     
+    # add series cover
+    cover_file:Path = None
+    cover_content:bytes = None
+    if 'cover' in kwargs and kwargs['cover'] is not None:
+        cover_file = data_path/kwargs['cover']
+    if cover_file is None or not cover_file.exists():
+        novel_id,novel_obj = list(seriesjson['novels'].items())[0]
+        cover_img_name = novel_obj['novel_cover_img_name']
+        cover_file = data_path/cover_img_name
+    with open(cover_file, 'rb') as file:
+        cover_content = file.read()
+    book.set_cover(
+        file_name=f'image/cover-{cover_file.name}',
+        content=cover_content,
+        create_page=True
+    )
+    
     # add novels
     for idx,(novel_id,novel_obj) in enumerate(seriesjson['novels'].items(), 1):
         # load novel content txt
@@ -359,7 +381,7 @@ def generate_epub(root_path:Union[str,Path], seriesjson_list:Union[list,str], da
         book.add_item(novel_epub)
         toc.append(novel_epub)
         
-        # load novel images (cover)
+        # load novel images (novel cover)
         cover_img_name = novel_obj['novel_cover_img_name']
         with open(data_path/cover_img_name, 'rb') as file:
             cover_image_content = file.read()
@@ -384,7 +406,7 @@ def generate_epub(root_path:Union[str,Path], seriesjson_list:Union[list,str], da
     book.toc = toc
     book.add_item(epub.EpubNcx())
     book.add_item(epub.EpubNav())
-    book.spine = ['nav', *toc]
+    book.spine = ['cover', 'nav', *toc]
     
     filename = None
     if 'filename' in kwargs and kwargs['filename'] is not None:
