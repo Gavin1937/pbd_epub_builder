@@ -5,7 +5,7 @@ import json
 from sys import argv
 from bs4 import BeautifulSoup
 from ebooklib import epub
-from typing import Union
+from typing import Union, Iterable
 from copy import deepcopy
 from pathlib import Path, PurePath
 from time import time
@@ -62,16 +62,18 @@ ARGUMENTS
 OPTIONAL ARGUMENTS
     -idx                        flag to indicate whether to add numerical index before novel title (default False)
     
-    -title                      string template to overwrite & customize series title inside epub.
+    -title TITLE                string template to overwrite & customize series title inside epub.
                                 if not supplied, this script will use "%SERIES_TITLE%" by default.
                                 series_title is picked from "series_title" field in seriesjson, if exists.
                                 if it does not exist, we will pick the "novel_title" field of the first novel in the list.
     
-    -file                       string template to output & customize epub filename.
+    -file FILENAME              string template to output & customize epub filename.
                                 if not supplied, this script will use "[%AUTHOR_NAME%] %SERIES_TITLE%.epub" by default
     
-    - cover                     str, relative path to cover image file inside data folder. Default None.
+    -cover COVER_FILENAME       string, relative path to cover image file inside data folder. Default None.
                                 default use cover image of the first novel in the series.
+    
+    -v | --verbose              flag to enable verbose mode
 
 STRING TEMPLATE
     %AUTHOR_NAME%               string author_name
@@ -259,6 +261,11 @@ def _parse_str_template(seriesjson:dict, template:str) -> str:
     
     return output
 
+def _pprint(obj, name:str, indent:int=2):
+    try:
+        print(name, json.dumps(obj, indent=indent, ensure_ascii=False))
+    except:
+        print(name, obj)
 
 def generate_epub(root_path:Union[str,Path], seriesjson_list:Union[list,str], data_path:Union[str,Path], output_path:Union[str,Path], **kwargs) -> Path:
     '''
@@ -289,6 +296,7 @@ def generate_epub(root_path:Union[str,Path], seriesjson_list:Union[list,str], da
                                 if not supplied, this function will use "[%AUTHOR_NAME%] %SERIES_TITLE%.epub" by default
             - cover          => str, relative path to cover image file inside data folder. Default None.
                                 default use cover image of the first novel in the series.
+            - verbose        => bool, whether to enable verbose mode
     
     String Template:
     ----------------
@@ -318,6 +326,10 @@ def generate_epub(root_path:Union[str,Path], seriesjson_list:Union[list,str], da
     if not output_path.exists():
         raise ValueError('Input "output_path" does not exists.')
     
+    verbose = False
+    if 'verbose' in kwargs:
+        verbose = bool(kwargs['verbose'])
+    
     tmp = []
     if isinstance(seriesjson_list, list):
         for series in seriesjson_list:
@@ -333,6 +345,8 @@ def generate_epub(root_path:Union[str,Path], seriesjson_list:Union[list,str], da
         raise ValueError('No input "seriesjson_list" is valid.')
     seriesjson = extract_series_json(tmp)
     del tmp
+    if verbose:
+        _pprint(seriesjson, 'seriesjson =')
     
     
     book = epub.EpubBook()
@@ -422,6 +436,20 @@ def generate_epub(root_path:Union[str,Path], seriesjson_list:Union[list,str], da
 def pdb_epub_builder_help():
     print(HELP_MESSAGE)
 
+def check_arg(argkey:Union[str,Iterable], arglen:int, args:list, arg_cursor:int) -> bool:
+    is_correct_argkey = None
+    have_enough_args = None
+    
+    if arglen is None or arglen <= 1:
+        is_correct_argkey = lambda ak: (args[arg_cursor] == ak)
+    else:
+        have_enough_args = len(args) >= (argv_cursor-1+arglen)
+        is_correct_argkey = lambda ak: (args[arg_cursor] == ak and have_enough_args)
+    
+    if isinstance(argkey, str):
+        return is_correct_argkey(argkey)
+    elif isinstance(argkey, Iterable):
+        return any([is_correct_argkey(ak) for ak in argkey])
 
 if __name__ == '__main__':
     try:
@@ -433,63 +461,92 @@ if __name__ == '__main__':
             pdb_epub_builder_help()
             exit()
         
-        if len(argv) < 8:
-            print('Missing arguments.')
-            exit(-1)
         
-        # parse mandatory arguments
-        argv_cursor = 1
-        root_path = argv[argv_cursor]
-        argv_cursor += 1
-        
-        seriesjson_list = None
-        if argv[argv_cursor] == '-l':
-            seriesjson_list = []
-            argv_cursor += 1
-            while argv[argv_cursor] not in ['-l','-w','-d','-o','-idx']:
-                seriesjson_list.append(argv[argv_cursor])
-                argv_cursor += 1
-        elif argv[argv_cursor] == '-w':
-            argv_cursor += 1
-            seriesjson_list = argv[argv_cursor]
-            argv_cursor += 1
-        else:
-            raise ValueError('Input argument are in a wrong order.')
-        
-        data_path = None
-        if argv[argv_cursor] == '-d':
-            argv_cursor += 1
-            data_path = argv[argv_cursor]
-            argv_cursor += 1
-        else:
-            raise ValueError('Input argument are in a wrong order.')
-        
-        output_path = None
-        if argv[argv_cursor] == '-o':
-            argv_cursor += 1
-            output_path = argv[argv_cursor]
-            argv_cursor += 1
-        else:
-            raise ValueError('Input argument are in a wrong order.')
-        
-        # parse optional arguments
+        arg_keys = [
+            '-r','-l','-w',
+            '-d','-o',
+            '-idx','-title',
+            '-file','-cover',
+            '-v','--verbose',
+        ]
+        mandatory_args = {
+            'root_path': None,
+            'seriesjson_list': None,
+            'data_path': None,
+            'output_path': None,
+        }
+        duplication_flags = {
+            'seriesjson_flag': False
+        }
         optional_args = dict()
+        argv_cursor = 1
+        
+        # parser loop
         while len(argv) > argv_cursor:
-            if argv[argv_cursor] == '-idx':
+            
+            # mandatory arguments
+            
+            if check_arg('-r', 2, argv, argv_cursor):
+                argv_cursor += 1
+                mandatory_args['root_path'] = argv[argv_cursor]
+            
+            elif check_arg('-l', None, argv, argv_cursor) and not duplication_flags['seriesjson_flag']:
+                mandatory_args['seriesjson_list'] = []
+                argv_cursor += 1
+                while argv[argv_cursor] not in arg_keys:
+                    mandatory_args['seriesjson_list'].append(argv[argv_cursor])
+                    argv_cursor += 1
+                argv_cursor -= 1
+                duplication_flags['seriesjson_flag'] = True
+            elif check_arg('-w', 2, argv, argv_cursor) and not duplication_flags['seriesjson_flag']:
+                argv_cursor += 1
+                mandatory_args['seriesjson_list'] = argv[argv_cursor]
+                duplication_flags['seriesjson_flag'] = True
+            
+            elif check_arg('-d', 2, argv, argv_cursor):
+                argv_cursor += 1
+                mandatory_args['data_path'] = argv[argv_cursor]
+            
+            elif check_arg('-o', 2, argv, argv_cursor):
+                argv_cursor += 1
+                mandatory_args['output_path'] = argv[argv_cursor]
+            
+            # optional arguments
+            
+            elif check_arg('-idx', 1, argv, argv_cursor):
                 optional_args['use_idx'] = True
-            elif argv[argv_cursor] == '-title' and len(argv) > argv_cursor+1:
-                optional_args['series_title'] = argv[argv_cursor+1]
+            
+            elif check_arg('-title', 2, argv, argv_cursor):
                 argv_cursor += 1
-            elif argv[argv_cursor] == '-file' and len(argv) > argv_cursor+1:
-                optional_args['filename'] = argv[argv_cursor+1]
+                optional_args['series_title'] = argv[argv_cursor]
+            
+            elif check_arg('-file', 2, argv, argv_cursor):
                 argv_cursor += 1
+                optional_args['filename'] = argv[argv_cursor]
+            
+            elif check_arg('-cover', 2, argv, argv_cursor):
+                argv_cursor += 1
+                optional_args['cover'] = argv[argv_cursor]
+            
+            elif check_arg(['-v','--verbose'], 1, argv, argv_cursor):
+                optional_args['verbose'] = True
+            
             argv_cursor += 1
+        
+        
+        if 'verbose' in optional_args and optional_args['verbose']:
+            _pprint(mandatory_args, 'mandatory_args =')
+            _pprint(optional_args, 'optional_args =')
+        
+        for _,v in mandatory_args.items():
+            if v is None:
+                print('Missing mandatory arguments.')
+                exit(-1)
         
         
         output_file = generate_epub(
-            root_path, seriesjson_list,
-            data_path, output_path,
-            **optional_args
+            **mandatory_args,
+            **optional_args,
         )
         print(f'Create EPUB: {output_file}')
         

@@ -72,13 +72,18 @@ ARGUMENTS
 OPTIONAL ARGUMENTS
     -idx                        flag to indicate whether to add numerical index before novel title (default False)
     
-    -title                      string template to overwrite & customize series title inside epub.
+    -title TITLE                string template to overwrite & customize series title inside epub.
                                 if not supplied, this script will use "%SERIES_TITLE%" by default.
                                 series_title is picked from "series_title" field in seriesjson, if exists.
                                 if it does not exist, we will pick the "novel_title" field of the first novel in the list.
     
-    -file                       string template to output & customize epub filename.
+    -file FILENAME              string template to output & customize epub filename.
                                 if not supplied, this script will use "[%AUTHOR_NAME%] %SERIES_TITLE%.epub" by default
+    
+    -cover COVER_FILENAME       string, relative path to cover image file inside data folder. Default None.
+                                default use cover image of the first novel in the series.
+    
+    -v | --verbose              flag to enable verbose mode
 
 STRING TEMPLATE
     %AUTHOR_NAME%               string author_name
