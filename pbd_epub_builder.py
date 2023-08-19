@@ -197,24 +197,30 @@ def parse_novel_content(seriesjson:dict, novel_id:int, novel_index:int, content:
     
     # parse novel content
     pattern = r'^(.*)\[uploadedimage:(\d+)\](.*)$'
+    
+    def recursive_match_append(p, line):
+        match = re.search(pattern, line)
+        if match:
+            # break line into 3 parts and call 1 & 3 parts with this function again
+            recursive_match_append(p, match.group(1))
+            img_id = match.group(2)
+            img_name = seriesjson['novels'][novel_id]['novel_embedded_imgs'][img_id]
+            img_path_str = str(img_path/img_name)
+            new_img = html.new_tag('img')
+            new_img['src'] = img_path_str
+            p.append(new_img)
+            recursive_match_append(p, match.group(3))
+        else:
+            # base case, just append to p tag
+            p.append(line)
+    
     for line in content.splitlines():
         if len(line) == 0: # line = '\n', convert it to '<br/>
             new_br = html.new_tag('br')
             html.div.append(new_br)
         else:
             new_p = html.new_tag('p')
-            match = re.search(pattern, line)
-            if match: # add novel embedded image
-                new_p.append(match.group(1))
-                img_id = match.group(2)
-                img_name = seriesjson['novels'][novel_id]['novel_embedded_imgs'][img_id]
-                img_path_str = str(img_path/img_name)
-                new_img = html.new_tag('img')
-                new_img['src'] = img_path_str
-                new_p.append(new_img)
-                new_p.append(match.group(3))
-            else:
-                new_p.append(line)
+            recursive_match_append(new_p, line)
             html.div.append(new_p)
     
     # parse novel cover & description
