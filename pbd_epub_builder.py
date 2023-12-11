@@ -433,6 +433,8 @@ def generate_epub(root_path:Union[str,Path], seriesjson_list:Union[list,str], da
         filename = _parse_str_template(seriesjson, kwargs['filename'])
     else:
         filename = _parse_str_template(seriesjson, '[%AUTHOR_NAME%] %SERIES_TITLE%.epub')
+    if len(filename.encode('utf-8')) >= 256:
+        raise ValueError('Filename too long.')
     output_path = output_path/filename
     epub.write_epub(output_path, book, {})
     return output_path.resolve()
