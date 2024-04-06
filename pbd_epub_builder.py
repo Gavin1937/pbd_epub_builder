@@ -267,6 +267,17 @@ def _parse_str_template(seriesjson:dict, template:str) -> str:
     
     return output
 
+def _parse_content_str_to_html(html:BeautifulSoup, content:str) -> BeautifulSoup:
+    for line in content.splitlines():
+        if len(line) == 0: # line = '\n', convert it to '<br/>
+            new_br = html.new_tag('br')
+            html.div.append(new_br)
+        else:
+            new_p = html.new_tag('p')
+            new_p.string = line
+            html.div.append(new_p)
+    return html
+
 def _pprint(obj, name:str, indent:int=2):
     try:
         print(name, json.dumps(obj, indent=indent, ensure_ascii=False))
@@ -382,6 +393,16 @@ def generate_epub(root_path:Union[str,Path], seriesjson_list:Union[list,str], da
         create_page=True
     )
     
+    # add series caption
+    caption_epub = None
+    if 'series_caption' in kwargs and kwargs['series_caption'] is not None:
+        caption_html = BeautifulSoup('<div class="series_caption"><h1 class="series_caption_title"></h1></div>', 'lxml')
+        caption_html = _parse_content_str_to_html(caption_html, kwargs['series_caption'])
+        caption_html.select_one('h1.series_caption_title').string = '简介'
+        caption_epub = epub.EpubHtml(title='简介', file_name=f'caption.xhtml')
+        caption_epub.content = str(caption_html)
+        book.add_item(caption_epub)
+    
     # add novels
     for idx,(novel_id,novel_obj) in enumerate(seriesjson['novels'].items(), 1):
         # load novel content txt
@@ -426,7 +447,11 @@ def generate_epub(root_path:Union[str,Path], seriesjson_list:Union[list,str], da
     book.toc = toc
     book.add_item(epub.EpubNcx())
     book.add_item(epub.EpubNav())
-    book.spine = ['cover', 'nav', *toc]
+    final_spine = ['cover']
+    if caption_epub:
+        final_spine.append(caption_epub)
+    final_spine += ['nav', *toc]
+    book.spine = final_spine
     
     filename = None
     if 'filename' in kwargs and kwargs['filename'] is not None:
