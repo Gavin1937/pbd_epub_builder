@@ -31,7 +31,7 @@ pip install -r requirements.txt
 ```
 INFO
     Author           - Gavin1937
-    Version          - 2023.05.31.v02
+    Version          - 2024.04.05.v01
     pdb_epub_builder - Build EPUB book for novels downloaded by PixivBatchDownloader(https://github.com/xuejianxianzun/PixivBatchDownloader)
 
 SYNOPSIS
@@ -82,6 +82,8 @@ OPTIONAL ARGUMENTS
     
     -cover COVER_FILENAME       string, relative path to cover image file inside data folder. Default None.
                                 default use cover image of the first novel in the series.
+    
+    -series_caption CAPTION_TXT string, if supplied, add a caption/简介 page after cover page with the content supplied.
     
     -v | --verbose              flag to enable verbose mode
 
@@ -134,6 +136,9 @@ kwargs = {
     'use_idx': False,
     'series_title': '%SERIES_TITLE%',
     'filename': '[%AUTHOR_NAME%] %SERIES_TITLE%.epub',
+    'cover': '/path/to/cover.png',
+    'series_caption': 'series caption text',
+    'verbose': True,
 }
 
 output_file = generate_epub(

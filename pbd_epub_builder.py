@@ -21,7 +21,7 @@ __all__ = [
 HELP_MESSAGE = '''
 INFO
     Author           - Gavin1937
-    Version          - 2023.05.31.v02
+    Version          - 2024.04.05.v01
     pdb_epub_builder - Build EPUB book for novels downloaded by PixivBatchDownloader(https://github.com/xuejianxianzun/PixivBatchDownloader)
 
 SYNOPSIS
@@ -72,6 +72,8 @@ OPTIONAL ARGUMENTS
     
     -cover COVER_FILENAME       string, relative path to cover image file inside data folder. Default None.
                                 default use cover image of the first novel in the series.
+    
+    -series_caption CAPTION_TXT string, if supplied, add a caption/简介 page after cover page with the content supplied.
     
     -v | --verbose              flag to enable verbose mode
 
@@ -313,6 +315,7 @@ def generate_epub(root_path:Union[str,Path], seriesjson_list:Union[list,str], da
                                 if not supplied, this function will use "[%AUTHOR_NAME%] %SERIES_TITLE%.epub" by default
             - cover          => str, relative path to cover image file inside data folder. Default None.
                                 default use cover image of the first novel in the series.
+            - series_caption => str, if supplied, add a caption/简介 page after cover page with the content supplied.
             - verbose        => bool, whether to enable verbose mode
     
     String Template:
@@ -560,6 +563,10 @@ if __name__ == '__main__':
             elif check_arg('-cover', 2, argv, argv_cursor):
                 argv_cursor += 1
                 optional_args['cover'] = argv[argv_cursor]
+            
+            elif check_arg('-series_caption', 2, argv, argv_cursor):
+                argv_cursor += 1
+                optional_args['series_caption'] = argv[argv_cursor]
             
             elif check_arg(['-v','--verbose'], 1, argv, argv_cursor):
                 optional_args['verbose'] = True
